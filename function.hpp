@@ -14,19 +14,14 @@ namespace doreshnikov {
     class function<ReturnType(ArgumentTypes...)> {
 
     public:
-        function() {
+        function() : invoker() {};
+        ~function() = default;
 
-        }
-        ~function() {
+        template<typename CallableType>
+        explicit function(CallableType callable_object) : invoker(new callable_holder<CallableType>(callable_object)) {}
 
-        }
-        template<typename FunctionType>
-        function(FunctionType) {
-
-        }
-
-        ReturnType operator()(ArgumentTypes...) {
-
+        ReturnType operator()(ArgumentTypes... args) {
+            return invoker->invoke(args...);
         }
 
     private:
@@ -50,7 +45,7 @@ namespace doreshnikov {
             CallableType _callable_object;
         };
 
-        std::shared_ptr<callable_base>
+        std::shared_ptr<callable_base> invoker;
 
     };
 

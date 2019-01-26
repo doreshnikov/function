@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cassert>
-#include "function.h"
+#include "function.hpp"
 #include <functional>
 
 int foo() {

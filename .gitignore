@@ -1,3 +1,13 @@
 cmake-build-debug/
 cmake-build-release/
+CMakeFiles/
 .idea/
+.git/
+
+CMakeCache.txt
+function.cbp
+Makefile
+cmake_install.cmake
+
+function
+testing

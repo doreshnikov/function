@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cassert>
+#include <vector>
 #include "function.hpp"
-#include <functional>
 
 int foo() {
     return 1;
@@ -115,8 +115,6 @@ void test_copy_small_object() {
     }
     assert(g() == -1);
 }
-
-
 
 void NIKITOZZZZ_test() {
     // тут хз, мб плохой тест (для решение нужна убрать const после invoke/call/etc)

@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <utility>
 
 template<typename>
 class function;
@@ -105,8 +106,8 @@ public:
         return *this;
     }
 
-    Return operator()(Args ...args) {
-        _invoker.get()->invoke(args...);
+    Return operator()(Args&& ...args) {
+        _invoker.get()->invoke(std::forward<Args>(args)...);
     }
 
     operator bool() const noexcept {
@@ -127,7 +128,7 @@ private:
 
         virtual ~holder_base() = default;
 
-        virtual Return invoke(Args ...args) = 0;
+        virtual Return invoke(Args&& ...args) = 0;
 
         virtual std::unique_ptr<holder_base> copy() const = 0;
 
@@ -139,7 +140,7 @@ private:
     public:
         explicit functor_holder(Functor functor) : holder_base(), _functor(functor) {}
 
-        Return invoke(Args ...args) override {
+        Return invoke(Args&& ...args) override {
             return _functor(args...);
         }
 

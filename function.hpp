@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <memory>
 #include <utility>
+#include <variant>
 
 template<typename>
 class function;
@@ -20,77 +21,39 @@ private:
     class functor_holder;
 
     typedef std::unique_ptr<holder_base> big_t;
-    static std::size_t const SMALL_SIZE = 5 * sizeof(big_t);
-    typedef char small_t[SMALL_SIZE];
+    static std::size_t const SMALL_SIZE = 16;
+    typedef std::array<std::byte, SMALL_SIZE> small_t;
 
-    struct storage {
-        bool _is_small;
+    mutable std::variant<small_t, big_t> _invoker;
 
-        union {
-            small_t small_object;
-            big_t big_object;
-        };
-
-        storage(bool is_small) : _is_small(is_small), big_object() {
-            if (_is_small) {
-                big_object.~big_t();
-            }
-        }
-
-        ~storage() {
-            if (_is_small) {
-                reinterpret_small()->~holder_base();
-            }
-        }
-
-        storage(storage &&other) : _is_small(other._is_small) {
-            if (_is_small) {
-                std::copy(other.small_object, other.small_object + SMALL_SIZE, small_object);
-            } else {
-                big_object = std::move(other.big_object);
-            }
-            other._is_small = false;
-        }
-
-        holder_base const *reinterpret_small() const {
-            return reinterpret_cast<holder_base const *>(small_object);
-        }
-
-        holder_base *reinterpret_small() {
-            return reinterpret_cast<holder_base *>(small_object);
-        }
-
-        holder_base const *get() const {
-            return _is_small ? reinterpret_small() : big_object.get();
-        }
-
-        holder_base *get() {
-            return _is_small ? reinterpret_small() : big_object.get();
-        }
-    } _invoker;
+    holder_base *reinterpret_small() const {
+        return reinterpret_cast<holder_base *>(std::get<small_t>(_invoker).data());
+    }
 
 public:
 
-    function() noexcept : _invoker(false) {}
+    function() noexcept : _invoker(nullptr) {}
 
-    function(nullptr_t) noexcept : _invoker(false) {}
+    function(nullptr_t) noexcept : _invoker(nullptr) {}
 
     ~function() {}
 
     template<typename Functor>
-    function(Functor functor) : _invoker(sizeof(functor_holder<Functor>) <= SMALL_SIZE) {
-        if (_invoker._is_small) {
-            new(_invoker.small_object) functor_holder<Functor>(functor);
+    function(Functor functor) : _invoker() {
+        if (sizeof(functor_holder<Functor>) <= SMALL_SIZE) {
+            _invoker = small_t();
+            new(std::get<small_t>(_invoker).data()) functor_holder<Functor>(functor);
         } else {
-            _invoker.big_object = std::make_unique<functor_holder<Functor>>(functor);
+            _invoker = std::make_unique<functor_holder<Functor>>(functor);
         }
     }
 
-    function(function const &other) : _invoker(other._invoker._is_small) {
-        if (_invoker._is_small) {
-            other._invoker.reinterpret_small()->place_copy(_invoker.small_object);
+    function(function const &other) : _invoker() {
+        if (std::holds_alternative<small_t>(other._invoker)) {
+            _invoker = small_t();
+            other.reinterpret_small()->place_copy(std::get<small_t>(_invoker));
         } else {
-            _invoker.big_object = other._invoker.big_object->copy();
+            _invoker = std::get<big_t>(other._invoker)->copy();
         }
     }
 
@@ -107,17 +70,19 @@ public:
     }
 
     Return operator()(Args&& ...args) {
-        _invoker.get()->invoke(std::forward<Args>(args)...);
+        if (std::holds_alternative<small_t>(_invoker)) {
+            return reinterpret_small()->invoke(std::forward<Args>(args)...);
+        } else {
+            return std::get<big_t>(_invoker)->invoke(std::forward<Args>(args)...);
+        }
     }
 
     operator bool() const noexcept {
-        return _invoker.get() != nullptr;
+        return std::holds_alternative<small_t>(_invoker) || std::get<big_t>(_invoker) != nullptr;
     }
 
     void swap(function &other) {
-        std::swap(_invoker._is_small, other._invoker._is_small);
-        // I think it's better not to do this, but for now it's ok
-        std::swap(_invoker.small_object, other._invoker.small_object);
+        std::swap(_invoker, other._invoker);
     }
 
 private:
@@ -149,7 +114,7 @@ private:
         }
 
         void place_copy(small_t &location) const override {
-            new(location) functor_holder<Functor>(_functor);
+            new(location.data()) functor_holder<Functor>(_functor);
         }
 
     private:

@@ -88,7 +88,7 @@ public:
         return std::holds_alternative<small_t>(_invoker) || std::get<big_t>(_invoker) != nullptr;
     }
 
-    void swap(function &other) {
+    void swap(function &other) noexcept {
         if (std::holds_alternative<small_t>(_invoker) && std::holds_alternative<small_t>(other._invoker)) {
             small_t dummy;
             reinterpret_small()->move_to(dummy);
